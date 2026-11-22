@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>阅读作品复核控制台</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1: #fcfcfb;
+    --page: #f9f9f7;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11, 11, 11, .1);
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --good: #0ca30c;
+    --warning: #fab219;
+    --serious: #ec835a;
+    --critical: #d03b3b;
+    --good-text: #006300;
+    --wash: rgba(42, 120, 214, .08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-1: #1a1a19;
+      --page: #0d0d0d;
+      --ink: #f0efec;
+      --ink-2: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --axis: #383835;
+      --border: rgba(255, 255, 255, .1);
+      --series-1: #3987e5;
+      --series-2: #d95926;
+      --series-3: #199e70;
+      --good-text: #0ca30c;
+      --wash: rgba(57, 135, 229, .14);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 14px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page);
+    color: var(--ink);
+  }
+  header {
+    padding: 20px 28px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-1);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+    align-items: baseline;
+  }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  header .meta { color: var(--ink-2); font-size: 12px; }
+  main { padding: 20px 28px 60px; max-width: 1280px; }
+  nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+  nav button {
+    border: 1px solid var(--border);
+    background: var(--surface-1);
+    color: var(--ink-2);
+    padding: 6px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    font: inherit;
+  }
+  nav button[aria-selected="true"] { background: var(--ink); color: var(--surface-1); border-color: var(--ink); }
+  section.panel { display: none; }
+  section.panel.active { display: block; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    min-width: 0;
+  }
+  .card h2 { font-size: 13px; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); font-weight: 600; }
+  .stat .value { font-size: 30px; font-weight: 650; letter-spacing: -.01em; }
+  .stat .label { color: var(--ink-2); font-size: 12px; }
+  .stat .note { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 14px; }
+  label { color: var(--ink-2); font-size: 12px; display: inline-flex; gap: 6px; align-items: center; }
+  select, input, button.action {
+    font: inherit; color: var(--ink); background: var(--surface-1);
+    border: 1px solid var(--border); border-radius: 7px; padding: 5px 9px;
+  }
+  button.action { cursor: pointer; }
+  button.action.primary { background: var(--series-1); border-color: var(--series-1); color: #fff; }
+  button.action:disabled { opacity: .5; cursor: not-allowed; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  th { color: var(--ink-2); font-weight: 600; font-size: 12px; }
+  td.num { font-variant-numeric: tabular-nums; }
+  .tag { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border); white-space: nowrap; }
+  .tag::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+  .tag.resolved::before { background: var(--good); }
+  .tag.contested::before { background: var(--critical); }
+  .tag.unreviewed::before { background: var(--warning); }
+  .tag.stale::before { background: var(--serious); }
+  .tag.invalid::before { background: var(--critical); }
+  .tag.usable::before { background: var(--good); }
+  .muted { color: var(--muted); }
+  .ink2 { color: var(--ink-2); }
+  .err { color: var(--critical); }
+  .ok { color: var(--good-text); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  .chart { width: 100%; height: auto; display: block; }
+  .chart .axis line, .chart .axis path { stroke: var(--axis); stroke-width: 1; }
+  .chart .grid line { stroke: var(--grid); stroke-width: 1; }
+  .chart text { fill: var(--muted); font-size: 11px; font-family: inherit; }
+  .chart .bar { fill: var(--series-1); }
+  .chart .bar.alt { fill: var(--series-2); }
+  .chart .bar.adjusted { fill: var(--series-3); }
+  .chart .band { fill: none; stroke: var(--ink-2); stroke-width: 1.5; }
+  .chart .bar-hit { fill: transparent; cursor: default; }
+  .chart .bar-hit:hover + .bar, .chart .bar:hover { opacity: .82; }
+  .chart .label { fill: var(--ink-2); }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); margin-top: 6px; }
+  .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .legend .a::before { background: var(--series-1); }
+  .legend .b::before { background: var(--series-2); }
+  .legend .c::before { background: var(--series-3); }
+  #tooltip {
+    position: fixed; pointer-events: none; z-index: 20; display: none;
+    background: var(--surface-1); color: var(--ink); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.12);
+    max-width: 280px;
+  }
+  .stack { display: grid; gap: 14px; }
+  details { border-top: 1px solid var(--grid); padding-top: 8px; }
+  summary { cursor: pointer; color: var(--ink-2); font-size: 12px; }
+  pre { margin: 8px 0 0; white-space: pre-wrap; word-break: break-word; font-size: 11.5px; color: var(--ink-2); }
+  .notice { border-left: 3px solid var(--series-1); padding: 8px 12px; background: var(--wash); border-radius: 4px; font-size: 12.5px; color: var(--ink-2); }
+  .notice.warn { border-left-color: var(--serious); }
+</style>
+</head>
+<body>
+<header>
+  <h1>阅读作品复核控制台</h1>
+  <span class="meta" id="sourceMeta">正在读取资料…</span>
+</header>
+<main>
+  <nav id="tabs" role="tablist">
+    <button role="tab" data-tab="overview" aria-selected="true">总览</button>
+    <button role="tab" data-tab="works">作品逐维状态</button>
+    <button role="tab" data-tab="triage">复核优先级</button>
+    <button role="tab" data-tab="compare">学校比较</button>
+    <button role="tab" data-tab="withdrawals">资格撤回</button>
+    <button role="tab" data-tab="publications">发布审计</button>
+    <button role="tab" data-tab="log">操作记录</button>
+  </nav>
+
+  <section class="panel active" id="panel-overview">
+    <div class="grid" id="overviewStats"></div>
+    <div class="grid" style="margin-top:16px">
+      <div class="card"><h2>三种权威来源</h2><div id="authority" class="ink2"></div></div>
+      <div class="card"><h2>校准联系</h2><div id="approvals"></div></div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-works">
+    <div class="row">
+      <label>作品 <select id="workSelect"></select></label>
+      <button class="action" id="loadWork">查看逐维状态</button>
+      <label>分派维度 <select id="planDim"></select></label>
+    </div>
+    <div id="workDetail" class="stack"></div>
+  </section>
+
+  <section class="panel" id="panel-triage">
+    <div class="row">
+      <label>维度 <select id="triageDim"><option value="">全部</option></select></label>
+      <label>数量 <input id="triageLimit" type="number" value="10" min="1" max="50" style="width:70px"></label>
+      <button class="action" id="loadTriage">重新排序</button>
+    </div>
+    <div class="card"><table id="triageTable"></table></div>
+  </section>
+
+  <section class="panel" id="panel-compare">
+    <div class="row">
+      <label>维度 <select id="cmpDim"></select></label>
+      <label>规则 <select id="cmpRubric"><option value="">全部（分别比较）</option></select></label>
+      <label>学校 A <select id="cmpA"></select></label>
+      <label>学校 B <select id="cmpB"></select></label>
+      <button class="action primary" id="loadCompare">比较并追踪</button>
+    </div>
+    <div id="compareOut" class="stack"></div>
+  </section>
+
+  <section class="panel" id="panel-withdrawals">
+    <div class="row">
+      <label>联系 <select id="wdApproval"></select></label>
+      <label>教师 <select id="wdTeacher"></select></label>
+      <label>日期 <input type="date" id="wdOn" value="2026-07-25"></label>
+      <label>原因 <input id="wdReason" value="校准资格撤回"></label>
+      <button class="action primary" id="doWithdraw">撤回并分类处理</button>
+    </div>
+    <div class="notice warn">撤回不会改写原始评分。未完成分派撤销、已完成结论保留并标注联系失效、已发布比较标记待复核。</div>
+    <div id="withdrawOut" class="stack" style="margin-top:16px"></div>
+  </section>
+
+  <section class="panel" id="panel-publications">
+    <div class="row">
+      <label>发布 <select id="pubSelect"></select></label>
+      <button class="action" id="loadAudit">审计引用</button>
+    </div>
+    <div id="auditOut" class="stack"></div>
+  </section>
+
+  <section class="panel" id="panel-log">
+    <div class="card"><h2>追加式操作记录</h2><table id="logTable"></table></div>
+  </section>
+</main>
+<div id="tooltip" role="status"></div>
+<script>
+const $ = (sel) => document.querySelector(sel);
+const el = (tag, attrs = {}, ...kids) => {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") node.className = v;
+    else if (k === "text") node.textContent = v;
+    else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+    else node.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) if (kid != null) node.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  return node;
+};
+const fmt = (v, digits = 2) => (v == null || Number.isNaN(v)) ? "—" : (typeof v === "number" ? v.toFixed(digits) : v);
+const pct = (v) => v == null ? "—" : Math.round(v * 100) + "%";
+
+let overview = null;
+const state = { schools: [], rubrics: [] };
+
+async function api(path, options) {
+  const res = await fetch("/api" + path, options);
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.error || ("HTTP " + res.status));
+  return body;
+}
+async function post(path, payload) {
+  return api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+}
+function fail(node, error) {
+  node.replaceChildren(el("div", { class: "notice warn err", text: "错误：" + error.message }));
+}
+function tag(status, text) {
+  const map = { resolved: "resolved", contested: "contested", unreviewed: "unreviewed", invalid: "invalid", stale: "stale", usable_with_caveats: "usable", usable: "usable" };
+  return el("span", { class: "tag " + (map[status] || "") , text });
+}
+
+// ---------------------------------------------------------------- tabs
+document.querySelectorAll("#tabs button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#tabs button").forEach((b) => b.setAttribute("aria-selected", String(b === btn)));
+    document.querySelectorAll("section.panel").forEach((p) => p.classList.toggle("active", p.id === "panel-" + btn.dataset.tab));
+  });
+});
+
+// ---------------------------------------------------------------- overview
+async function loadOverview() {
+  overview = await api("/overview");
+  state.schools = overview.schools.map((s) => s.id);
+  state.rubrics = overview.rubrics.map((r) => r.id);
+  $("#sourceMeta").textContent = `原始资料指纹 ${overview.source.sha256.slice(0, 16)}… · 资料截至 ${overview.as_of} · 追加事件 ${overview.events.length}`;
+  const authorities = overview.authorities;
+  const stats = $("#overviewStats");
+  stats.replaceChildren(
+    statTile("原始评分", authorities.raw_scores.count, "只读保留，自动调整不改写"),
+    statTile("正式复核裁决", authorities.formal_reviews.adjudication_count, `有效 ${authorities.formal_reviews.active} · 被替代保留 ${authorities.formal_reviews.retained_after_supersede}`),
+    statTile("已发布比较", overview.publications.length, "范围与引用需可追溯"),
+    statTile("复核任务", overview.assignments.length, "接受 / 退回 / 完成均留记录"),
+  );
+  $("#authority").replaceChildren(
+    el("div", { text: "原始评分：" + authorities.raw_scores.source }),
+    el("div", { text: "尺度调整：派生分析层，不改写原始分，也不替代正式复核。" }),
+    el("div", { text: "正式复核：逐维保留决定、依据与原始评分引用；后续校准资料不能静默推翻。" }),
+  );
+  // options
+  fillSelect($("#planDim"), ["evidence", "interpretation", "reflection"]);
+  fillSelect($("#cmpDim"), ["evidence", "interpretation", "reflection"]);
+  fillSelect($("#triageDim"), ["", "evidence", "interpretation", "reflection"], (v) => v || "全部");
+  fillSelect($("#cmpRubric"), ["", ...state.rubrics], (v) => v || "全部（分别比较）");
+  fillSelect($("#cmpA"), state.schools); fillSelect($("#cmpB"), state.schools, null, 1);
+  fillSelect($("#pubSelect"), overview.publications.map((p) => p.id));
+  loadWithdrawalOptions();
+  loadApprovals();
+  loadLog();
+  loadWorks();
+}
+function statTile(label, value, note) {
+  return el("div", { class: "card stat" },
+    el("div", { class: "label", text: label }),
+    el("div", { class: "value", text: String(value) }),
+    el("div", { class: "note", text: note }));
+}
+function fillSelect(node, values, label = (v) => v, selected = 0) {
+  node.replaceChildren(...values.map((v, i) => el("option", { value: v, text: label(v), ...(i === selected ? { selected: "" } : {}) })));
+}
+async function loadApprovals() {
+  const data = await api("/withdrawals");
+  $("#approvals").replaceChildren(el("table", {},
+    el("thead", {}, el("tr", {}, el("th", { text: "联系" }), el("th", { text: "维度" }), el("th", { text: "状态" }), el("th", { text: "撤回/失效" }))),
+    el("tbody", {}, data.approvals.map((a) => el("tr", {},
+      el("td", { class: "mono", text: a.approval.id }),
+      el("td", { text: a.approval.dimension + " · " + a.approval.from_rubric + "→" + a.approval.to_rubric }),
+      el("td", {}, a.active ? el("span", { class: "tag usable", text: "有效" }) : el("span", { class: "tag stale", text: a.reason || "失效" })),
+      el("td", { class: "mono", text: a.effective_end || "—" }))))));
+}
+async function loadWithdrawalOptions() {
+  const data = await api("/withdrawals");
+  fillSelect($("#wdApproval"), data.approvals.map((a) => a.approval.id));
+  fillSelect($("#wdTeacher"), data.teachers.map((t) => t.id));
+}
+
+// ---------------------------------------------------------------- works
+async function loadWorks() {
+  const works = overview?.works?.map((w) => w.id) || [];
+  fillSelect($("#workSelect"), works);
+  await showWork();
+}
+async function showWork() {
+  const out = $("#workDetail");
+  out.replaceChildren(el("div", { class: "muted", text: "读取中…" }));
+  try {
+    const workId = $("#workSelect").value;
+    const [states, plan] = await Promise.all([
+      api(`/works/${workId}/dimensions`), api(`/works/${workId}/plan?dimension=${$("#planDim").value}`)]);
+    const cards = Object.entries(states.states).map(([dim, s]) => el("div", { class: "card" },
+      el("h2", {}, `${dim} `, tag(s.status, s.status === "resolved" ? "已裁定" : s.status === "contested" ? "仍有争议" : "未复核")),
+      el("div", { class: "muted", text: "当前取值：" + (s.value == null ? "无（材料不足）" : fmt(s.value)) }),
+      el("div", { class: "mono muted", text: "原始评分：" + (s.raw_score_ids.join(", ") || "—") }),
+      s.adjudication ? el("div", { class: "ink2", text: `裁决 ${s.adjudication.id} · ${s.adjudication.decision} · ${s.adjudication.on}` }) : el("div", { class: "muted", text: "尚无正式裁决" }),
+      s.adjudication ? el("div", { class: "muted", text: "依据：" + (s.adjudication.basis.rationale || "（原始记录未附理由）") }) : null,
+      s.connection_supported === false ? el("div", { class: "err", text: "复核人校准资格已撤回：结论保留，但联系依据不再受支持" }) : null,
+    ));
+    out.replaceChildren(
+      el("div", { class: "notice", text: `作品 ${workId} · 规则 ${states.rubric_id} · 可用维度：${states.usable_dimensions.join(" / ") || "无"}。逐维裁定，不用整篇作废。` }),
+      el("div", { class: "grid" }, cards),
+      el("div", { class: "card" },
+        el("h2", { text: "为该维度分派复核（合格教师）" }),
+        el("table", {},
+          el("thead", {}, el("tr", {}, el("th", { text: "教师" }), el("th", { text: "余量" }), el("th", { text: "排序" }), el("th", { text: "理由" }), el("th", { text: "" }))),
+          el("tbody", {}, plan.eligible.map((c) => el("tr", {},
+            el("td", { class: "mono", text: c.teacher_id }),
+            el("td", { class: "num", text: c.remaining_capacity }),
+            el("td", { class: "num", text: fmt(c.rank_score) }),
+            el("td", { class: "muted", text: c.why }),
+            el("td", {}, el("button", { class: "action", text: "分派", onclick: () => offer(workId, $("#planDim").value, c.teacher_id) })))))),
+        plan.excluded.length ? el("details", {}, el("summary", { text: `不合格教师 ${plan.excluded.length} 人及原因` }),
+          el("div", {}, plan.excluded.map((x) => el("div", { class: "muted", text: `${x.teacher_id}：${x.reasons.join("；")}` })))) : null,
+      ),
+    );
+  } catch (e) { fail(out, e); }
+}
+async function offer(workId, dimension, teacher) {
+  try {
+    const record = await post("/assignments", { work_id: workId, teacher_id: teacher, on: today(), reason: "按维度复核" });
+    window.__pending = { ...(window.__pending || {}), [record.id]: dimension };
+    await refreshAll();
+    alert(`已创建分派 ${record.id} → ${teacher}（待接受）。可在操作记录中接受并完成。`);
+  } catch (e) { alert("错误：" + e.message); }
+}
+function today() { return new Date().toISOString().slice(0, 10); }
+
+// ---------------------------------------------------------------- triage
+async function loadTriage() {
+  const out = $("#triageTable");
+  out.replaceChildren(el("tbody", {}, el("tr", {}, el("td", { class: "muted", text: "读取中…" }))));
+  try {
+    const dim = $("#triageDim").value;
+    const limit = $("#triageLimit").value || 10;
+    const rows = await api(`/triage?limit=${limit}` + (dim ? `&dimension=${dim}` : ""));
+    out.replaceChildren(
+      el("thead", {}, el("tr", {}, el("th", { text: "作品" }), el("th", { text: "维度" }), el("th", { text: "状态" }), el("th", { text: "优先级" }), el("th", { text: "分歧" }), el("th", { text: "合格复核人" }), el("th", { text: "理由" }))),
+      el("tbody", {}, rows.map((r) => el("tr", {},
+        el("td", { class: "mono", text: r.work_id }),
+        el("td", { text: r.dimension }),
+        el("td", {}, tag(r.status, r.status === "contested" ? "争议未解" : "未复核")),
+        el("td", { class: "num", text: fmt(r.priority) }),
+        el("td", { class: "num", text: pct(r.disagreement.normalized_range) }),
+        el("td", { class: "num", text: r.eligible_reviewers || "0（需调整分派）" }),
+        el("td", { class: "muted", text: r.reasons.join("；") || "常规复核" })))));
+  } catch (e) { fail(out.parentElement, e); }
+}
+
+// ---------------------------------------------------------------- compare
+async function loadCompare() {
+  const out = $("#compareOut");
+  out.replaceChildren(el("div", { class: "muted", text: "计算中…" }));
+  try {
+    const dim = $("#cmpDim").value, a = $("#cmpA").value, b = $("#cmpB").value;
+    const rubric = $("#cmpRubric").value;
+    const [cmp, trace] = await Promise.all([
+      api(`/compare?schools=${a},${b}&dimension=${dim}` + (rubric ? `&rubric=${rubric}` : "")),
+      api(`/trace?schools=${a},${b}&dimension=${dim}` + (rubric ? `&rubric=${rubric}` : "")),
+    ]);
+    out.replaceChildren(renderBars(cmp, a, b), renderEquating(cmp), renderTrace(trace, a, b), await renderImpact(a, b, dim, rubric));
+  } catch (e) { fail(out, e); }
+}
+function renderBars(cmp, a, b) {
+  const card = el("div", { class: "card" }, el("h2", { text: `学校比较 · ${cmp.dimension} · 按规则分别比较（不混合）` }));
+  const blocks = cmp.blocks;
+  const width = 640, rowH = 62, padL = 46, padR = 110;
+  const height = 20 + blocks.length * rowH + 20;
+  const svg = svgEl("svg", { class: "chart", viewBox: `0 0 ${width} ${height}`, role: "img", "aria-label": "按规则的学校差异与 95% 区间" });
+  const values = blocks.flatMap((bl) => [bl.schools[a], bl.schools[b]].map((s) => s?.estimate ?? 0));
+  const maxV = Math.max(1, ...values);
+  const scaleX = (v) => padL + (Math.max(0, Math.min(v, maxV)) / maxV) * (width - padL - padR);
+  const zero = scaleX(0);
+  svg.append(svgEl("line", { x1: zero, x2: zero, y1: 10, y2: height - 10, style: "stroke:var(--axis);stroke-width:1" }));
+  blocks.forEach((bl, i) => {
+    const y = 34 + i * rowH;
+    const sA = bl.schools[a], sB = bl.schools[b];
+    const barW = 18;
+    drawBar(svg, y, "A", sA, scaleX, zero, barW, "bar");
+    drawBar(svg, y + barW + 6, "B", sB, scaleX, zero, barW, "bar alt");
+    const contrast = bl.contrasts[0];
+    svg.append(svgEl("text", { x: 8, y: y - 4, style: "fill:var(--ink-2)" }, `${bl.rubric_id} · ${a}−${b} = ${fmt(contrast?.difference)}`));
+    svg.append(svgEl("text", { x: width - padR + 6, y: y + 10, style: "fill:" + (contrast?.reliable ? "var(--good-text)" : "var(--muted)") }, contrast?.reliable ? "差值区间不含 0" : "差值区间含 0"));
+  });
+  const s = (v) => v == null ? "—" : fmt(v);
+  card.append(svg, el("div", { class: "legend" },
+    el("span", { class: "a", text: `${a} 加权均值` }), el("span", { class: "b", text: `${b} 加权均值` })));
+  card.append(el("table", {},
+    el("thead", {}, el("tr", {}, el("th", { text: "规则" }), el("th", { text: a }), el("th", { text: b }), el("th", { text: "差值" }), el("th", { text: "差值 95% 区间" }), el("th", { text: "调整后差值" }), el("th", { text: "已正式裁定作品" }), el("th", { text: "尺度说明" }))),
+    el("tbody", {}, blocks.map((bl) => {
+      const c = bl.contrasts[0];
+      const ev = bl.evidence || {};
+      return el("tr", {},
+        el("td", { class: "mono", text: bl.rubric_id }),
+        el("td", { class: "num", text: s(bl.schools[a].estimate) + ` (±${s(bl.schools[a].se ?? null)})` }),
+        el("td", { class: "num", text: s(bl.schools[b].estimate) + ` (±${s(bl.schools[b].se ?? null)})` }),
+        el("td", { class: "num", text: s(c?.difference) }),
+        el("td", { class: "num", text: c?.ci95 ? `[${s(c.ci95[0])}, ${s(c.ci95[1])}]` : "—" }),
+        el("td", { class: "num", text: s(c?.adjusted?.difference) }),
+        el("td", { class: "num", text: ev[a] ? `${ev[a].formally_resolved}/${ev[a].works}` : "—" }),
+        el("td", { class: "muted", text: bl.scale.verdict }));
+    })),
+  ));
+  card.append(el("div", { class: "notice", style: "margin-top:10px", text: "作品难易、教师尺度与余差在同一两向模型中估计；无法与残差区分时不逐师调整。规则不同的总分不混合。" }));
+  return card;
+}
+function drawBar(svg, y, name, summary, scaleX, zero, barW, cls) {
+  const v = summary?.estimate;
+  if (v == null) return;
+  const x = Math.min(zero, scaleX(v)), w = Math.abs(scaleX(v) - zero);
+  svg.append(svgEl("rect", { x, y, width: Math.max(w, 0.5), height: barW, rx: 3, class: cls }));
+  svg.append(svgEl("text", { x: (v >= 0 ? scaleX(v) + 5 : x - 5), y: y + barW - 4, "text-anchor": v >= 0 ? "start" : "end", style: "fill:var(--ink-2)" }, fmt(v)));
+}
+function svgEl(tag, attrs, text) {
+  const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs || {})) node.setAttribute(k, v);
+  if (text) node.textContent = text;
+  return node;
+}
+function renderEquating(cmp) {
+  const eq = cmp.equating;
+  return el("div", { class: "card" },
+    el("h2", { text: "规则变化：共同作品换算检查" }),
+    el("div", { class: "ink2", text: eq.verdict }),
+    el("table", {},
+      el("tbody", {},
+        el("tr", {}, el("th", { text: "共同作品" }), el("td", { class: "num", text: eq.shared_anchor_count })),
+        el("tr", {}, el("th", { text: "相关系数" }), el("td", { class: "num", text: fmt(eq.correlation, 3) })),
+        el("tr", {}, el("th", { text: "换算 RMSE（归一化）" }), el("td", { class: "num", text: fmt(eq.rmse, 3) })),
+        el("tr", {}, el("th", { text: "已批准联系" }), el("td", { text: eq.approved_link ? "有" : "无有效联系" })),
+        el("tr", {}, el("th", { text: "可用于换算" }), el("td", {}, el("span", { class: "tag " + (eq.usable ? "usable" : "stale"), text: eq.usable ? "是（仅本维度）" : "否" }))),
+      )));
+}
+function renderTrace(trace, a, b) {
+  const card = el("div", { class: "card" }, el("h2", { text: `追溯：${a} vs ${b} · ${trace.dimension}` }));
+  const blocks = trace.blocks;
+  blocks.forEach((bl) => {
+    const c = bl.contrasts[0];
+    if (!c) return;
+    card.append(el("div", { class: "row", text: `${bl.rubric_id}：差值 ${fmt(c.difference)}，调整后 ${fmt(c.adjusted_difference)}；` + (c.reliable ? "区间不含 0" : "区间含 0，不能宣称差异") }));
+    card.append(el("details", {}, el("summary", { text: `采用的作品、逐维裁决与联系依据（${c.works.length} 件）` }),
+      el("table", {},
+        el("thead", {}, el("tr", {}, el("th", { text: "作品" }), el("th", { text: "学校" }), el("th", { text: "取值" }), el("th", { text: "原始评分" }), el("th", { text: "裁决" }), el("th", { text: "联系依据" }), el("th", { text: "状态" }))),
+        el("tbody", {}, c.works.map((w) => el("tr", {},
+          el("td", { class: "mono", text: w.work_id }),
+          el("td", { text: w.school_id }),
+          el("td", { class: "num", text: fmt(w.value) }),
+          el("td", { class: "mono", text: w.raw_score_ids.join(", ") }),
+          el("td", { text: w.decision + (w.rationale ? " · " + w.rationale : "") }),
+          el("td", { text: (w.calibration_evidence || []).map((e) => e.approval_id + (e.active ? "（有效）" : "（失效）")).join("、") || "—" }),
+          el("td", {}, tag(w.status, w.status === "resolved" ? "已裁定" : w.status === "contested" ? "争议" : "未复核"))))))));
+    card.append(el("details", {}, el("summary", { text: "教师尺度与调整排除" }),
+      el("div", { class: "mono muted", text: `未连通教师：${(c.link_basis?.unconnected_teachers || []).join(", ") || "无"}；资格撤回教师：${(c.link_basis?.link_withdrawn_teachers || []).join(", ") || "无"}；调整排除：${JSON.stringify(c.link_basis?.excluded_from_adjusted || {})}` })));
+  });
+  if (trace.still_contested.length) card.append(el("div", { class: "notice warn", text: "仍有争议的维度：" + trace.still_contested.join("、") + "。这些作品没有被整篇作废，只在该维度保留争议。" }));
+  return card;
+}
+async function renderImpact(a, b, dim, rubric) {
+  const steps = await api(`/impact?schools=${a},${b}&dimension=${dim}` + (rubric ? `&rubric=${rubric}` : ""));
+  const card = el("div", { class: "card" }, el("h2", { text: "这些行动对比较是否有帮助" }));
+  if (!steps.length) {
+    card.append(el("div", { class: "muted", text: "尚无复核行动。分派、裁决或撤回后，这里会逐步说明比较是否改善。" }));
+    return card;
+  }
+  const head = el("tr", {},
+    el("th", { text: "#" }), el("th", { text: "行动" }), el("th", { text: "日期" }),
+    el("th", { text: "是否改变比较" }), el("th", { text: "判断" }), el("th", { text: "差值（前→后）" }));
+  const body = el("tbody", {}, steps.map((t) => el("tr", {},
+    el("td", { class: "num", text: t.seq }),
+    el("td", { class: "mono", text: t.type }),
+    el("td", { class: "mono", text: t.on }),
+    el("td", { text: t.changed_comparison ? "是" : "否" }),
+    el("td", { class: "ink2", text: t.helped }),
+    el("td", { class: "num", text: `${fmt(t.before.difference)} → ${fmt(t.after.difference)}` }))));
+  card.append(el("table", {}, el("thead", {}, head), body));
+  return card;
+}
+
+// ---------------------------------------------------------------- withdrawals
+async function doWithdraw() {
+  const out = $("#withdrawOut");
+  out.replaceChildren(el("div", { class: "muted", text: "处理中…" }));
+  try {
+    const body = { approval_id: $("#wdApproval").value, teacher_id: $("#wdTeacher").value, on: $("#wdOn").value, reason: $("#wdReason").value };
+    const result = await post("/withdrawals", body);
+    out.replaceChildren(
+      el("div", { class: "notice", text: result.policy }),
+      el("div", { class: "grid" },
+        el("div", { class: "card" }, el("h2", { text: "未完成分派（已撤销）" }), el("div", {}, result.unfinished_assignments.length ? result.unfinished_assignments.map((x) => el("div", { class: "mono", text: `${x.assignment_id} · ${x.work_id} · 原状态 ${x.status}` })) : "无")),
+        el("div", { class: "card" }, el("h2", { text: "保留的已完成结论" }), el("div", {}, result.retained_adjudications.length ? result.retained_adjudications.map((x) => el("div", { class: "mono", text: `${x.adjudication_id} · ${x.dimension} · ${x.decision} · 保留原值，联系失效` })) : "无")),
+        el("div", { class: "card" }, el("h2", { text: "已发出比较" }), el("div", {}, result.publications_affected.length ? result.publications_affected.map((x) => el("div", { text: `${x.publication_id}（${x.on}）→ ${x.action}` })) : "无")),
+        el("div", { class: "card" }, el("h2", { text: "评分可用范围" }), el("div", { class: "muted", text: `原始评分保留 ${result.score_dispositions.filter((d) => d.raw_retained).length} 条；其中 ${result.score_dispositions.filter((d) => !d.usable_for_scale_link).length} 条不再支持尺度联系。` })),
+      ),
+      el("div", { class: "card" }, el("h2", { text: "逐评分处置" }),
+        el("table", {}, el("thead", {}, el("tr", {}, el("th", { text: "评分" }), el("th", { text: "作品" }), el("th", { text: "维度" }), el("th", { text: "原始分保留" }), el("th", { text: "可用于尺度联系" }))),
+          el("tbody", {}, result.score_dispositions.map((d) => el("tr", {}, el("td", { class: "mono", text: d.score_id }), el("td", { class: "mono", text: d.work_id }), el("td", { text: d.dimension }), el("td", { text: d.raw_retained ? "是" : "否" }), el("td", {}, el("span", { class: "tag " + (d.usable_for_scale_link ? "usable" : "stale"), text: d.usable_for_scale_link ? "是" : "否" }))))))),
+    );
+    await refreshAll();
+  } catch (e) { fail(out, e); }
+}
+
+// ---------------------------------------------------------------- publications
+async function loadAudit() {
+  const out = $("#auditOut");
+  out.replaceChildren(el("div", { class: "muted", text: "读取中…" }));
+  try {
+    const id = $("#pubSelect").value;
+    const audit = await api(`/publications/${id}/audit`);
+    out.replaceChildren(
+      el("div", { class: "card" },
+        el("h2", {}, `发布 ${audit.publication_id} `, tag(audit.verdict, audit.verdict === "invalid" ? "引用无效" : audit.verdict === "stale" ? "联系已失效" : "可引用")),
+        el("div", { class: "ink2", text: audit.action }),
+        el("div", { class: "muted", text: `声明学校 ${audit.school_ids.join(" / ")} · 维度 ${audit.dimension} · 规则 ${audit.rubric_ids.join(", ")} · 引用评分 ${audit.used_count}/${audit.score_count}` })),
+      el("div", { class: "card" }, el("h2", { text: "问题清单" }),
+        el("table", {}, el("thead", {}, el("tr", {}, el("th", { text: "类型" }), el("th", { text: "数量" }), el("th", { text: "说明" }))),
+          el("tbody", {}, audit.problems.map((p) => el("tr", {},
+            el("td", { class: "mono", text: p.kind }),
+            el("td", { class: "num", text: p.count ?? "—" }),
+            el("td", { class: "muted", text: p.hint || (p.schools ? "越界学校：" + p.schools.join("、") : p.dimensions ? "混入维度：" + p.dimensions.join("、") : p.approval_id ? "联系 " + p.approval_id : "") })))))),
+      el("div", { class: "card" }, el("h2", { text: "联系有效性" }),
+        el("table", {}, el("thead", {}, el("tr", {}, el("th", { text: "联系" }), el("th", { text: "发布时有效" }), el("th", { text: "当前有效" }), el("th", { text: "撤回日" }))),
+          el("tbody", {}, audit.approvals.map((a) => el("tr", {}, el("td", { class: "mono", text: a.approval_id }), el("td", { text: a.active_at_publication ? "是" : "否" }), el("td", { text: a.active_now ? "是" : "否" }), el("td", { class: "mono", text: a.withdrawn_on || "—" })))))),
+    );
+  } catch (e) { fail(out, e); }
+}
+
+// ---------------------------------------------------------------- log
+async function loadLog() {
+  const data = await api("/overview");
+  $("#logTable").replaceChildren(
+    el("thead", {}, el("tr", {}, el("th", { text: "#" }), el("th", { text: "类型" }), el("th", { text: "日期" }), el("th", { text: "摘要" }))),
+    el("tbody", {}, data.events.length ? data.events.map((e) => el("tr", {},
+      el("td", { class: "num", text: e.seq }),
+      el("td", { class: "mono", text: e.type }),
+      el("td", { class: "mono", text: e.on }),
+      el("td", { class: "mono muted", text: JSON.stringify(e.payload).slice(0, 160) }))) : el("tr", {}, el("td", { colspan: 4, class: "muted", text: "尚无操作。分派、裁决、撤回都会追加记录。" }))));
+}
+
+async function refreshAll() {
+  await loadOverview();
+  await loadApprovals();
+  await loadWorks();
+  if (document.querySelector("#panel-triage.active")) await loadTriage();
+  if (document.querySelector("#panel-publications.active")) await loadAudit();
+}
+
+$("#loadWork").addEventListener("click", showWork);
+$("#workSelect").addEventListener("change", showWork);
+$("#planDim").addEventListener("change", showWork);
+$("#loadTriage").addEventListener("click", loadTriage);
+$("#triageDim").addEventListener("change", loadTriage);
+$("#loadCompare").addEventListener("click", loadCompare);
+$("#cmpDim").addEventListener("change", loadCompare);
+$("#doWithdraw").addEventListener("click", doWithdraw);
+$("#loadAudit").addEventListener("click", loadAudit);
+document.querySelectorAll("#tabs button").forEach((btn) => btn.addEventListener("click", () => {
+  if (btn.dataset.tab === "triage") loadTriage();
+  if (btn.dataset.tab === "publications") loadAudit();
+  if (btn.dataset.tab === "compare") loadCompare();
+}));
+
+loadOverview().then(loadCompare).catch((e) => { $("#sourceMeta").textContent = "读取失败：" + e.message; });
+</script>
+</body>
+</html>

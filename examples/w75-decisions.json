@@ -1,0 +1,18 @@
+[
+  {
+    "dimension": "evidence",
+    "decision": "keep",
+    "rationale": "复核人独立重读，维持原分；原始评分引用见 basis"
+  },
+  {
+    "dimension": "interpretation",
+    "decision": "revise",
+    "score": 3,
+    "rationale": "引用原文证据不足，按规则下调至 3 分"
+  },
+  {
+    "dimension": "reflection",
+    "decision": "insufficient",
+    "rationale": "作品缺反思段落，材料不足，保留争议"
+  }
+]
